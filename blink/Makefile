@@ -1,29 +1,44 @@
-# arduino include paths for heaaders
-A_ROOT=/usr/share/arduino/hardware/arduino
-A_CORE=${A_ROOT}/cores/arduino
-A_MEGA=${A_ROOT}/variants/mega
+PROGRAM=blink
+
+# Setup for Arduino Nano (clone), which based on atmega328p and is similar (in capabilites) to the standard UNO.
+MCU=atmega328p
+VARIANT=standard
+
+PATH_ROOT=/usr/share/arduino/hardware/arduino
+PATH_CORE=${PATH_ROOT}/cores/arduino
+PATH_VARIANT=${PATH_ROOT}/variants/${VARIANT}
+
+F_CPU=16000000
+FLAGS=-mmcu=${MCU} -Os -I${PATH_CORE} -I${PATH_VARIANT} -DF_CPU=${F_CPU}
+
+# The aruduino should be conneted to one of the /dev/ttyUSBs. Use the first one.
+PORT=$(shell ls /dev/ttyUSB* | head -1)
+
+# baudrate, empirically determined
+BAUDRATE=57600
+
+%.o: %.c
+	avr-gcc -o $@ -c $^ ${FLAGS}
+%.o: %.cpp
+	avr-gcc -o $@ -c $^ ${FLAGS}
 
 all: link
 
-# compile the 'blink' application
-blink.o: blink.cpp
-	avr-gcc -mmcu=atmega1280 -Os -I${A_CORE} -I${A_MEGA} -c blink.cpp
-
 # link the application with the arduino archive; create '.hex' file for flashing
 link: blink.o
-	avr-gcc -mmcu=atmega1280 -Os blink.o ../archive/libarduinomega.a -o prog.o
-	avr-objcopy -j .text -j .data -O ihex prog.o blink.hex
+	avr-gcc -mmcu=${MCU} -Os ${PROGRAM}.o ../archive/libarduino${VARIANT}.a -o prog.o
+	avr-objcopy -j .text -j .data -O ihex prog.o ${PROGRAM}.hex
 
 # flash the arudino
 up:
-	sudo avrdude -F -V -c stk500v2 -p ATMEGA2560 -P /dev/ttyACM0 -b 115200 -U flash:w:blink.hex
+	sudo avrdude -c arduino -p ${MCU} -P ${PORT} -b ${BAUDRATE} -U flash:w:${PROGRAM}.hex
 
 screen:
-	screen /dev/ttyACM0 -b 115200
+	screen ${PORT} -b 115200
 
 clean:
-	rm blink.o prog.o blink.hex
+	rm blink.o prog.o ${PROGRAM}.hex
 
 # attempt serial reset
 magic:
-	sudo avrdude -c arduino -P /dev/ttyACM0 -p atmega328p -U hfuse:r:-:h
+	sudo avrdude -c arduino -P ${PORT} -p ${MCU} -U hfuse:r:-:h
